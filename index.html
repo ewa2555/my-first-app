@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Angielski Tutor</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #fff6ee; --card: #ffffff; --text: #3a2b22; --muted: #8a7568;
+  --accent: #ef7d5c; --accent-text: #ffffff; --border: #f3ddc9;
+  --accent2: #ffb84d;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #2a1f18; --card: #3a2c22; --text: #fbe9dc; --muted: #cba98f;
+    --accent: #ff9166; --accent-text: #2a1508; --border: #4d3a2c; --accent2: #ffcb73;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #2a1f18; --card: #3a2c22; --text: #fbe9dc; --muted: #cba98f;
+  --accent: #ff9166; --accent-text: #2a1508; --border: #4d3a2c; --accent2: #ffcb73;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  min-height: 100%; display: flex; justify-content: center;
+}
+.wrap { width: 100%; max-width: 560px; padding: 24px 16px 40px; }
+.card {
+  background: var(--card); border: 2px solid var(--border); border-radius: 24px;
+  padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 0 var(--border);
+}
+h1 { font-size: 1.3rem; margin: 0 0 4px; }
+.sub { color: var(--muted); font-size: 0.92rem; margin: 0 0 20px; }
+.progress { height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
+.progress > div { height: 100%; background: var(--accent); transition: width .3s; }
+.qtext { font-size: 1.05rem; margin-bottom: 14px; line-height: 1.4; }
+textarea, input[type=text] {
+  width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 1rem; font-family: inherit;
+  resize: vertical; min-height: 70px;
+}
+.row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+button {
+  border: none; border-radius: 999px; padding: 13px 22px; font-size: 0.95rem;
+  cursor: pointer; font-family: inherit; font-weight: 700;
+}
+.btn-primary { background: var(--accent); color: var(--accent-text); box-shadow: 0 3px 0 #c85f42; }
+.btn-primary:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+.btn-ghost { background: transparent; color: var(--text); border: 2px solid var(--border); }
+.btn-mic { background: var(--accent2); color: #4a2f0d; box-shadow: 0 3px 0 #cf9636; }
+.btn-mic.recording { background: #e0554a; color: #fff; box-shadow: 0 3px 0 #a83b32; }
+.hint { color: var(--muted); font-size: 0.82rem; margin-top: 10px; }
+.level-box { text-align: center; padding: 18px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); }
+.level-box .lvl { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 6px 0; }
+.level-box .lbl { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.choice {
+  border: 2px solid var(--border); border-radius: 20px; padding: 18px; cursor: pointer; text-align: left;
+  background: var(--card); transition: transform .15s, border-color .15s;
+}
+.choice:hover { border-color: var(--accent); transform: translateY(-2px); }
+.choice h3 { margin: 0 0 4px; font-size: 1rem; }
+.choice p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.loading { text-align: center; color: var(--muted); padding: 30px 0; }
+.feedback { margin-top: 14px; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); font-size: 0.92rem; }
+.scorepill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
+.correct { background: #1f7a4d33; color: #1f7a4d; }
+.needswork { background: #c0473c33; color: #c0473c; }
+@media (prefers-color-scheme: dark) {
+  .correct { color: #6fd39a; } .needswork { color: #f0897d; }
+}
+.smallmute { font-size: 0.78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+const app = document.getElementById('app');
+let claudeSample = null;
+claude?.use && claude.use('sample').then(s => claudeSample = s);
+// ---- Quiz data: mix of writing and speaking questions ----
+const QUIZ = [
+  { type: 'text', prompt: 'Write two or three sentences about your typical morning routine.' },
+  { type: 'text', prompt: 'Complete this sentence in writing: "If I had more free time, I would..."' },
+  { type: 'speech', prompt: 'Say out loud: describe your favorite place to visit and why you like it.' },
+  { type: 'speech', prompt: 'Say out loud: what did you do last weekend?' },
+  { type: 'text', prompt: 'Write a short message to a coworker explaining you will be 10 minutes late to a meeting.' },
+];
+
+// ---- Practice exercise bank (simple starter set) ----
+const PRACTICE = {
+  writing: [
+    { q: 'Fix the grammar: "She don\'t like coffee in the morning."', answer: "She doesn't like coffee in the morning." },
+    { q: 'Fix the grammar: "I have went to the store yesterday."', answer: "I went to the store yesterday." },
+    { q: 'Rewrite more naturally: "The meeting, it will start at 9, I think."', answer: "I think the meeting will start at 9." },
+    { q: 'Fix the grammar: "He is working here since three years."', answer: "He has been working here for three years." },
+    { q: 'Fix the grammar: "I am agree with you."', answer: "I agree with you." },
+    { q: 'Rewrite more naturally: "Yesterday I go to the shop and I buy some bread."', answer: "Yesterday I went to the shop and bought some bread." },
+  ],
+  speaking: [
+    { q: 'Say out loud: introduce yourself in one sentence, including your job.' },
+    { q: 'Say out loud: order a coffee politely at a cafe.' },
+    { q: 'Say out loud: ask someone for directions to the train station.' },
+    { q: 'Say out loud: explain why you are running a few minutes late.' },
+    { q: 'Say out loud: describe the weather today in two sentences.' },
+    { q: 'Say out loud: politely disagree with a coworker\'s suggestion.' },
+  ]
+};
+let state = { screen: 'intro', qIndex: 0, answers: [], levels: null, focus: null, pIndex: 0, score: 0, attempts: 0 };
+
+function render() {
+  if (state.screen === 'intro') return renderIntro();
+  if (state.screen === 'quiz') return renderQuiz();
+  if (state.screen === 'grading') return renderGrading();
+  if (state.screen === 'results') return renderResults();
+  if (state.screen === 'practice') return renderPractice();
+}
+
+function renderIntro() {
+  app.innerHTML = `
+    <div class="card">
+      <h1>🎈 Angielski Tutor</h1>
+      <p class="sub">A short quiz will check your English level / Krótki quiz sprawdzi Twój poziom angielskiego — pisanie (writing) i mówienie (speaking).</p>
+      <button class="btn-primary" id="start">Start quiz / Zacznij quiz</button>
+      <p class="hint">Speaking questions use your microphone / Pytania mówione używają mikrofonu. You can also type instead / Możesz też pisać.</p>
+    </div>`;
+  document.getElementById('start').onclick = () => { state.screen = 'quiz'; render(); };
+}
+function renderQuiz() {
+  const q = QUIZ[state.qIndex];
+  const pct = Math.round((state.qIndex / QUIZ.length) * 100);
+  app.innerHTML = `
+    <div class="card">
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <p class="smallmute">Question ${state.qIndex + 1} / Pytanie ${state.qIndex + 1} z ${QUIZ.length} — ${q.type === 'speech' ? 'speak / mów' : 'write / pisz'}</p>
+      <p class="qtext">${q.prompt}</p>
+      <textarea id="answerBox" placeholder="${q.type === 'speech' ? 'Your speech will appear here, or type / Tu pojawi się mowa, lub pisz...' : 'Type your answer / Wpisz odpowiedź...'}"></textarea>
+      <div class="row">
+        ${q.type === 'speech' ? '<button class="btn-mic" id="micBtn">🎤 Tap to talk / Dotknij</button>' : ''}
+        <button class="btn-primary" id="nextBtn" disabled>Next / Dalej</button>
+      </div>
+      <p class="hint" id="micHint"></p>
+    </div>`;
+  const box = document.getElementById('answerBox');
+  const nextBtn = document.getElementById('nextBtn');
+  box.oninput = () => nextBtn.disabled = box.value.trim().length === 0;
+  if (q.type === 'speech') {
+    const micBtn = document.getElementById('micBtn');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      document.getElementById('micHint').textContent = 'Voice input needs Chrome. You can type your answer instead for now.';
+    } else {
+      const rec = new SR();
+      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = true;
+      let recording = false;
+      rec.onresult = (e) => {
+        let text = '';
+        for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + ' ';
+        box.value = text.trim();
+        nextBtn.disabled = box.value.trim().length === 0;
+      };
+      rec.onend = () => { recording = false; micBtn.classList.remove('recording'); micBtn.textContent = '🎤 Tap to talk'; };
+      micBtn.textContent = '🎤 Tap to talk';
+      micBtn.onclick = () => {
+        if (!recording) { recording = true; micBtn.classList.add('recording'); micBtn.textContent = '⏺ Recording... tap to stop'; rec.start(); }
+        else { rec.stop(); }
+      };
+    }
+  }
+
+  nextBtn.onclick = () => {
+    state.answers.push({ type: q.type, prompt: q.prompt, response: box.value.trim() });
+    if (state.qIndex + 1 < QUIZ.length) { state.qIndex++; render(); }
+    else { state.screen = 'grading'; render(); gradeQuiz(); }
+  };
+}
+function renderGrading() {
+  app.innerHTML = `<div class="card loading">Reading your answers... / Sprawdzam Twoje odpowiedzi... 🔎</div>`;
+}
+
+async function gradeQuiz() {
+  const transcript = state.answers.map((a, i) =>
+    `Q${i+1} (${a.type === 'speech' ? 'spoken' : 'written'}): ${a.prompt}\nAnswer: ${a.response}`
+  ).join('\n\n');
+
+  const fallback = { writing: 'Intermediate', speaking: 'Intermediate', note: 'Estimated automatically.' };
+
+  if (!claudeSample) { state.levels = fallback; state.screen = 'results'; return render(); }
+
+  try {
+    const result = await claudeSample.json(
+      `You are assessing a Polish speaker's English level from a short quiz. Here are their answers:\n\n${transcript}\n\n` +
+      `Judge two SEPARATE levels: their WRITING level (from the written answers) and their SPEAKING/UNDERSTANDING level (from the spoken answers, judged by clarity, grammar and vocabulary in the transcript). ` +
+      `Return strictly JSON: {"writing": "Beginner|Intermediate|Advanced", "speaking": "Beginner|Intermediate|Advanced", "writingNote": "one short encouraging sentence", "speakingNote": "one short encouraging sentence"}`
+    );
+    state.levels = result;
+  } catch (e) {
+    state.levels = fallback;
+  }
+  state.screen = 'results';
+  render();
+}
+function renderResults() {
+  const lv = state.levels;
+  app.innerHTML = `
+    <div class="card">
+      <h1>🎉 Your results / Twoje wyniki</h1>
+      <p class="sub">Pick what you'd like to focus on / Wybierz, co chcesz poprawić:</p>
+      <div class="grid2">
+        <div class="level-box"><div class="lbl">Writing / Pisanie</div><div class="lvl">${lv.writing}</div><p class="smallmute">${lv.writingNote || ''}</p></div>
+        <div class="level-box"><div class="lbl">Speaking / Mówienie</div><div class="lvl">${lv.speaking}</div><p class="smallmute">${lv.speakingNote || ''}</p></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="qtext" style="margin-bottom:16px;">What do you want to practice? / Co chcesz ćwiczyć?</p>
+      <div class="grid2">
+        <div class="choice" id="pickWriting"><h3>✍️ Writing / Pisanie</h3><p>Grammar, vocabulary, sentence structure</p></div>
+        <div class="choice" id="pickSpeaking"><h3>🗣️ Speaking / Mówienie</h3><p>Speaking out loud, being understood</p></div>
+      </div>
+    </div>`;
+  document.getElementById('pickWriting').onclick = () => { state.focus = 'writing'; state.screen = 'practice'; state.pIndex = 0; render(); };
+  document.getElementById('pickSpeaking').onclick = () => { state.focus = 'speaking'; state.screen = 'practice'; state.pIndex = 0; render(); };
+}
+function renderPractice() {
+  const set = PRACTICE[state.focus];
+  const item = set[state.pIndex % set.length];
+  app.innerHTML = `
+    <div class="card">
+      <p class="smallmute">Practicing / Ćwiczysz: ${state.focus === 'writing' ? 'Writing / Pisanie' : 'Speaking / Mówienie'} · ${(state.pIndex % set.length) + 1}/${set.length} &nbsp;·&nbsp; Score / Wynik: ${state.score}/${state.attempts}</p>
+      <p class="qtext">${item.q}</p>
+      <textarea id="pBox" placeholder="Type or use the mic / Pisz lub użyj mikrofonu..."></textarea>
+      <div class="row">
+        <button class="btn-mic" id="pMic">🎤 Talk / Mów</button>
+        <button class="btn-primary" id="pSubmit" disabled>Check / Sprawdź</button>
+        <button class="btn-ghost" id="pSkip">Next / Dalej</button>
+      </div>
+      <div id="pFeedback"></div>
+    </div>`;
+  const box = document.getElementById('pBox');
+  const submitBtn = document.getElementById('pSubmit');
+  box.oninput = () => submitBtn.disabled = box.value.trim().length === 0;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const rec = new SR(); rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = true;
+    let recording = false;
+    const micBtn = document.getElementById('pMic');
+    rec.onresult = (e) => { let t=''; for (let i=0;i<e.results.length;i++) t += e.results[i][0].transcript+' '; box.value = t.trim(); submitBtn.disabled = box.value.trim().length===0; };
+    rec.onend = () => { recording=false; micBtn.classList.remove('recording'); micBtn.textContent='🎤 Tap to talk'; };
+    micBtn.onclick = () => { if(!recording){recording=true; micBtn.classList.add('recording'); micBtn.textContent='⏺ Recording...'; rec.start();} else rec.stop(); };
+  } else { document.getElementById('pMic').disabled = true; }
+
+  document.getElementById('pSkip').onclick = () => { state.pIndex++; render(); };
+  submitBtn.onclick = async () => {
+    submitBtn.disabled = true; submitBtn.textContent = 'Checking...';
+    const fb = document.getElementById('pFeedback');
+    if (!claudeSample) {
+      fb.innerHTML = `<div class="feedback">Good effort! (Live AI feedback isn't available right now.)</div>`;
+    } else {
+      try {
+        const res = await claudeSample.json(
+          `A Polish learner of English is practicing ${state.focus}. Exercise: "${item.q}". Their answer: "${box.value.trim()}". ` +
+          `Give brief, encouraging feedback: point out the main grammar/wording issue (if any) and the corrected version. Return strictly JSON: {"correct": true|false, "feedback": "1-2 short sentences", "corrected": "corrected version of their answer"}`
+        );
+        fb.innerHTML = `<div class="feedback">
+          <span class="scorepill ${res.correct ? 'correct' : 'needswork'}">${res.correct ? 'Nice work / Świetnie' : 'Keep practicing / Ćwicz dalej'}</span>
+          <p>${res.feedback}</p>
+          <p class="smallmute">Corrected / Poprawnie: ${res.corrected}</p>
+        </div>`;
+        state.attempts++; if (res.correct) state.score++;
+        document.querySelector('.smallmute').innerHTML = `Practicing / Ćwiczysz: ${state.focus === 'writing' ? 'Writing / Pisanie' : 'Speaking / Mówienie'} · ${(state.pIndex % set.length) + 1}/${set.length} &nbsp;·&nbsp; Score / Wynik: ${state.score}/${state.attempts}`;
+      } catch(e) {
+        fb.innerHTML = `<div class="feedback">Got it, thanks! (Couldn't reach the AI checker just now.)</div>`;
+      }
+    }
+    submitBtn.textContent = 'Check my answer';
+  };
+}
+
+render();
+</script>
+</body>
+</html>
