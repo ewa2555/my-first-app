@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Angielski Tutor</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#ef7d5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Angielski">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
 :root {
   --bg: #fff6ee; --card: #ffffff; --text: #3a2b22; --muted: #8a7568;
@@ -84,8 +89,7 @@ button {
 
 <script>
 const app = document.getElementById('app');
-let claudeSample = null;
-claude?.use && claude.use('sample').then(s => claudeSample = s);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 // ---- Quiz data: mix of writing and speaking questions ----
 const QUIZ = [
   { type: 'text', prompt: 'Write two or three sentences about your typical morning routine.' },
@@ -186,28 +190,37 @@ function renderGrading() {
   app.innerHTML = `<div class="card loading">Reading your answers... / Sprawdzam Twoje odpowiedzi... 🔎</div>`;
 }
 
-async function gradeQuiz() {
-  const transcript = state.answers.map((a, i) =>
-    `Q${i+1} (${a.type === 'speech' ? 'spoken' : 'written'}): ${a.prompt}\nAnswer: ${a.response}`
-  ).join('\n\n');
+function analyze(text) {
+  const words = text.toLowerCase().match(/[a-z']+/g) || [];
+  return { n: words.length, unique: new Set(words).size, long: words.filter(w => w.length >= 7).length };
+}
 
-  const fallback = { writing: 'Intermediate', speaking: 'Intermediate', note: 'Estimated automatically.' };
+function levelFor(answers) {
+  if (!answers.length) return 'Beginner';
+  let n = 0, unique = 0, long = 0;
+  answers.forEach(a => { const r = analyze(a.response); n += r.n; unique += r.unique; long += r.long; });
+  if (!n) return 'Beginner';
+  const lengthScore = Math.min((n / answers.length) / 25, 1);
+  const varietyScore = Math.max(0, Math.min((unique / n - 0.5) / 0.4, 1));
+  const longScore = Math.min((long / n) / 0.15, 1);
+  const score = 0.5 * lengthScore + 0.3 * varietyScore + 0.2 * longScore;
+  return score < 0.4 ? 'Beginner' : score < 0.7 ? 'Intermediate' : 'Advanced';
+}
 
-  if (!claudeSample) { state.levels = fallback; state.screen = 'results'; return render(); }
+const NOTES = {
+  Beginner: 'Good start! Short, simple sentences are fine for now. / Dobry początek!',
+  Intermediate: 'Nice! Try adding more detail. / Świetnie! Dodaj więcej szczegółów.',
+  Advanced: 'Excellent range of words! / Świetne słownictwo!'
+};
 
-  try {
-    const result = await claudeSample.json(
-      `You are assessing a Polish speaker's English level from a short quiz. Here are their answers:\n\n${transcript}\n\n` +
-      `Judge two SEPARATE levels: their WRITING level (from the written answers) and their SPEAKING/UNDERSTANDING level (from the spoken answers, judged by clarity, grammar and vocabulary in the transcript). ` +
-      `Return strictly JSON: {"writing": "Beginner|Intermediate|Advanced", "speaking": "Beginner|Intermediate|Advanced", "writingNote": "one short encouraging sentence", "speakingNote": "one short encouraging sentence"}`
-    );
-    state.levels = result;
-  } catch (e) {
-    state.levels = fallback;
-  }
+function gradeQuiz() {
+  const w = levelFor(state.answers.filter(a => a.type === 'text'));
+  const sp = levelFor(state.answers.filter(a => a.type === 'speech'));
+  state.levels = { writing: w, speaking: sp, writingNote: NOTES[w], speakingNote: NOTES[sp] };
   state.screen = 'results';
   render();
 }
+
 function renderResults() {
   const lv = state.levels;
   app.innerHTML = `
@@ -258,29 +271,28 @@ function renderPractice() {
   } else { document.getElementById('pMic').disabled = true; }
 
   document.getElementById('pSkip').onclick = () => { state.pIndex++; render(); };
-  submitBtn.onclick = async () => {
-    submitBtn.disabled = true; submitBtn.textContent = 'Checking...';
+  let answered = false;
+  submitBtn.onclick = () => {
+    if (answered) return; answered = true;
+    const text = box.value.trim();
     const fb = document.getElementById('pFeedback');
-    if (!claudeSample) {
-      fb.innerHTML = `<div class="feedback">Good effort! (Live AI feedback isn't available right now.)</div>`;
+    let ok, msg, corrected = '';
+    if (item.answer) {
+      const norm = t => t.toLowerCase().replace(/[^a-z' ]/g, '').replace(/\s+/g, ' ').trim();
+      ok = norm(text) === norm(item.answer);
+      msg = ok ? 'Matches the expected answer.' : 'Not quite. Compare with the correct version below.';
+      corrected = item.answer;
     } else {
-      try {
-        const res = await claudeSample.json(
-          `A Polish learner of English is practicing ${state.focus}. Exercise: "${item.q}". Their answer: "${box.value.trim()}". ` +
-          `Give brief, encouraging feedback: point out the main grammar/wording issue (if any) and the corrected version. Return strictly JSON: {"correct": true|false, "feedback": "1-2 short sentences", "corrected": "corrected version of their answer"}`
-        );
-        fb.innerHTML = `<div class="feedback">
-          <span class="scorepill ${res.correct ? 'correct' : 'needswork'}">${res.correct ? 'Nice work / Świetnie' : 'Keep practicing / Ćwicz dalej'}</span>
-          <p>${res.feedback}</p>
-          <p class="smallmute">Corrected / Poprawnie: ${res.corrected}</p>
-        </div>`;
-        state.attempts++; if (res.correct) state.score++;
-        document.querySelector('.smallmute').innerHTML = `Practicing / Ćwiczysz: ${state.focus === 'writing' ? 'Writing / Pisanie' : 'Speaking / Mówienie'} · ${(state.pIndex % set.length) + 1}/${set.length} &nbsp;·&nbsp; Score / Wynik: ${state.score}/${state.attempts}`;
-      } catch(e) {
-        fb.innerHTML = `<div class="feedback">Got it, thanks! (Couldn't reach the AI checker just now.)</div>`;
-      }
+      ok = analyze(text).n >= 6;
+      msg = ok ? 'Good, a full sentence.' : 'Try a longer, complete sentence (at least 6 words).';
     }
-    submitBtn.textContent = 'Check my answer';
+    fb.innerHTML = `<div class="feedback">
+      <span class="scorepill ${ok ? 'correct' : 'needswork'}">${ok ? 'Nice work / Świetnie' : 'Keep practicing / Ćwicz dalej'}</span>
+      <p>${msg}</p>
+      ${corrected ? `<p class="smallmute">Corrected / Poprawnie: ${corrected}</p>` : ''}
+    </div>`;
+    state.attempts++; if (ok) state.score++;
+    document.querySelector('.smallmute').innerHTML = `Practicing / Ćwiczysz: ${state.focus === 'writing' ? 'Writing / Pisanie' : 'Speaking / Mówienie'} · ${(state.pIndex % set.length) + 1}/${set.length} &nbsp;·&nbsp; Score / Wynik: ${state.score}/${state.attempts}`;
   };
 }
 
