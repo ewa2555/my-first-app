@@ -200,11 +200,11 @@ function levelFor(answers) {
   let n = 0, unique = 0, long = 0;
   answers.forEach(a => { const r = analyze(a.response); n += r.n; unique += r.unique; long += r.long; });
   if (!n) return 'Beginner';
-  const lengthScore = Math.min((n / answers.length) / 25, 1);
-  const varietyScore = Math.max(0, Math.min((unique / n - 0.5) / 0.4, 1));
-  const longScore = Math.min((long / n) / 0.15, 1);
+  const lengthScore = Math.min((n / answers.length) / 40, 1);
+  const varietyScore = Math.max(0, Math.min((unique / n - 0.6) / 0.35, 1));
+  const longScore = Math.min((long / n) / 0.2, 1);
   const score = 0.5 * lengthScore + 0.3 * varietyScore + 0.2 * longScore;
-  return score < 0.4 ? 'Beginner' : score < 0.7 ? 'Intermediate' : 'Advanced';
+  return score < 0.4 ? 'Beginner' : score < 0.75 ? 'Intermediate' : 'Advanced';
 }
 
 const NOTES = {
